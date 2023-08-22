@@ -5,16 +5,19 @@
     <div class="form-element">
       <label for="name"> Nome completo </label>
       <input class="form-input" id="name" v-model="name" />
+      <span class="message-error">{{ this.errors.name }}</span>
     </div>
 
     <div class="form-element">
       <label for="email"> Email </label>
       <input class="form-input" id="email" v-model="email" />
+      <span class="message-error">{{ this.errors.email }}</span>
     </div>
 
     <div class="form-element">
       <label for="phone"> Telefone </label>
       <input class="form-input" id="phone" v-model="phone" />
+      <span class="message-error">{{ this.errors.phone }}</span>
     </div>
 
     <div class="form-element">
@@ -25,6 +28,7 @@
         type="password"
         v-model="password"
       />
+      <span class="message-error">{{ this.errors.password }}</span>
     </div>
 
     <div class="form-element">
@@ -35,6 +39,7 @@
         type="password"
         v-model="verifyPassword"
       />
+      <span class="message-error">{{ this.errors.verifyPassword }}</span>
     </div>
 
     <div class="form-element">
@@ -76,6 +81,7 @@
         <input type="checkbox" id="confirmTerms" v-model="confirmTerms" />
         Aceita termos de Uso
       </label>
+      <span class="message-error">{{ this.errors.confirmTerms }}</span>
     </div>
 
     <button type="submit">Criar conta</button>
@@ -83,6 +89,10 @@
 </template>
 
 <script>
+import * as yup from "yup";
+import { captureErrorYup } from "../../utils/captureErrorYup";
+import axios from "axios";
+
 export default {
   data() {
     return {
@@ -95,11 +105,80 @@ export default {
       bio: "",
       confirmTerms: true,
       planType: "2",
+
+      errors: {},
     };
   },
   methods: {
     handleCreateAccount() {
-      // SCHEMA VALIDATION
+      try {
+        // 1 - CRIAR SCHEMA VALIDATION
+        const schema = yup.object().shape({
+          name: yup.string().required("Nome é obrigatório"),
+          email: yup
+            .string()
+            .email("Email não é valido")
+            .required("Email é obrigatório"),
+          phone: yup.string().required("Telefone é obrigatório"),
+          password: yup
+            .string()
+            .min(8, "A senha deve ser maior")
+            .max(20, "Deve ter entre 8-20 letras")
+            .required("A senha é obrigatória"),
+          verifyPassword: yup
+            .string()
+            .required("A confirmação necessária")
+            .oneOf([yup.ref("password")], "As senhas devem coincidir"),
+          confirmTerms: yup.boolean().isTrue("O termo de uso deve ser aceito"),
+        });
+
+        schema.validateSync(
+          {
+            name: this.name,
+            email: this.email,
+            phone: this.phone,
+            password: this.password,
+            verifyPassword: this.verifyPassword,
+            confirmTerms: this.confirmTerms,
+          },
+          { abortEarly: false }
+        );
+
+        // Cadastro de usuario
+
+        axios({
+          url: "https://3999-177-37-231-113.ngrok.io/api/register",
+          method: "POST",
+          data: {
+            name: this.name,
+            email: this.email,
+            contact: this.phone,
+            password: this.password,
+            sponsor: this.sponsor,
+            bio: this.bio,
+            confirmTerms: this.confirmTerms,
+            planType: this.planType,
+          },
+        })
+          .then(() => {
+            alert("Cadastrado com sucesso");
+            this.$router.push("/");
+          })
+          .catch((error) => {
+            console.log(error);
+            if (error.response?.data?.message) {
+              alert(error.response.data.message);
+            } else {
+              alert("Houve uma falha ao tentar cadastrar");
+            }
+          });
+      } catch (error) {
+        if (error instanceof yup.ValidationError) {
+          console.log(error);
+          // capturar os errors do yup
+          this.errors = captureErrorYup(error);
+        }
+      }
     },
   },
 };
@@ -147,26 +226,13 @@ export default {
   gap: 5px;
 }
 
-.error-box {
-  background: tomato;
-  width: 80%;
-  color: #fff;
-}
-
-.input-area {
-  width: 100%;
-
-  display: flex;
-  flex-direction: column;
-}
-
-.input-area input {
-  width: 100%;
-}
-
-.texto-erro {
+.message-error {
   color: red;
   margin: 4px;
+}
+
+.input-error {
+  border-color: red;
 }
 
 button {
@@ -182,9 +248,5 @@ button {
 
 button:hover {
   background-color: #286ee0;
-}
-
-.input-error {
-  border-color: red;
 }
 </style>
